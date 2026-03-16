@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LogistiPath — Global Logistics Pathfinding</title>
+  <meta name="description" content="Interactive global logistics route optimizer with real-time constraint simulation using Dijkstra and A* algorithms on a live world map." />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <!-- App -->
+  <link rel="stylesheet" href="/static/index.css" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- ═══════════════════════════ HEADER ═══════════════════════════ -->
+    <header id="header">
+      <div class="header-brand">
+        <div class="brand-hex">⬡</div>
+        <div class="brand-text">
+          <span class="brand-name">LogistiPath</span>
+          <span class="brand-sub">Global Routing Intelligence</span>
+        </div>
+      </div>
+
+      <div class="header-chips">
+        <div class="chip" id="chip-hubs">⬡ 25 Hubs</div>
+        <div class="chip" id="chip-edges">↔ — Routes</div>
+        <div class="chip pulse" id="chip-status">● Ready</div>
+      </div>
+
+      <div class="header-time" id="header-clock">--:--</div>
+    </header>
+
+    <!-- ════════════════════════ MAIN LAYOUT ════════════════════════ -->
+    <div id="workspace">
+
+      <!-- ─────────────── LEFT SIDEBAR ─────────────── -->
+      <aside id="sidebar">
+
+        <!-- ROUTE PLANNER -->
+        <section class="panel" id="panel-planner">
+          <div class="panel-header">
+            <span class="panel-icon">◈</span>
+            <span class="panel-title">Route Planner</span>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Origin Hub</label>
+            <div class="select-wrap">
+              <select id="source-select">
+                <option value="">Select origin…</option>
+              </select>
+              <span class="select-arrow">▾</span>
+            </div>
+          </div>
+
+          <div class="swap-row">
+            <div class="swap-line"></div>
+            <button id="swap-btn" class="swap-btn" title="Swap hubs">⇅</button>
+            <div class="swap-line"></div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Destination Hub</label>
+            <div class="select-wrap">
+              <select id="dest-select">
+                <option value="">Select destination…</option>
+              </select>
+              <span class="select-arrow">▾</span>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Algorithm</label>
+            <div class="toggle-group" id="algo-toggle">
+              <button class="tog active" data-value="dijkstra">Dijkstra</button>
+              <button class="tog" data-value="astar">A★ Star</button>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Optimise For</label>
+            <div class="toggle-group three" id="opt-toggle">
+              <button class="tog active" data-value="time">⏱ Time</button>
+              <button class="tog" data-value="distance">📏 Dist</button>
+              <button class="tog" data-value="cost">💲 Cost</button>
+            </div>
+          </div>
+
+          <button id="find-btn" class="btn-primary" disabled>
+            <span class="btn-glyph">◈</span> Find Optimal Route
+          </button>
+        </section>
+
+        <!-- CONSTRAINTS -->
+        <section class="panel" id="panel-constraints">
+          <div class="panel-header">
+            <span class="panel-icon">⚡</span>
+            <span class="panel-title">Real-Time Constraints</span>
+          </div>
+
+          <!-- Weather -->
+          <div class="constraint-block">
+            <div class="constraint-header">
+              <span class="c-icon">🌪️</span>
+              <span class="c-label">Weather Disruption</span>
+            </div>
+            <div class="select-wrap">
+              <select id="weather-node"><option value="">Select hub…</option></select>
+              <span class="select-arrow">▾</span>
+            </div>
+            <div class="slider-wrap">
+              <input type="range" id="weather-slider" min="1" max="3.5" step="0.1" value="1" />
+              <div class="slider-row">
+                <span>Clear</span>
+                <span class="slider-val" id="weather-val">1.0×</span>
+                <span>Severe</span>
+              </div>
+            </div>
+            <button class="btn-constraint" id="apply-weather">Apply Weather</button>
+          </div>
+
+          <!-- Customs -->
+          <div class="constraint-block">
+            <div class="constraint-header">
+              <span class="c-icon">🛃</span>
+              <span class="c-label">Customs Delay</span>
+            </div>
+            <div class="select-wrap">
+              <select id="customs-node"><option value="">Select hub…</option></select>
+              <span class="select-arrow">▾</span>
+            </div>
+            <div class="slider-wrap">
+              <input type="range" id="customs-slider" min="0" max="72" step="6" value="0" />
+              <div class="slider-row">
+                <span>0 h</span>
+                <span class="slider-val" id="customs-val">0 h</span>
+                <span>72 h</span>
+              </div>
+            </div>
+            <button class="btn-constraint" id="apply-customs">Apply Customs</button>
+          </div>
+
+          <!-- Actions -->
+          <div class="constraint-actions">
+            <button class="btn-accent" id="random-btn">⚡ Random Event</button>
+            <button class="btn-danger" id="reset-btn">↺ Reset All</button>
+          </div>
+        </section>
+
+        <!-- ACTIVE CONSTRAINTS BADGE LIST -->
+        <section class="panel" id="panel-active" style="display:none">
+          <div class="panel-header">
+            <span class="panel-icon">🔴</span>
+            <span class="panel-title">Active Disruptions</span>
+          </div>
+          <div id="active-list"></div>
+        </section>
+
+      </aside>
+
+      <!-- ─────────────── MAP ─────────────── -->
+      <div id="map-area">
+        <div id="map"></div>
+
+        <!-- Map overlay legend -->
+        <div id="legend">
+          <div class="leg-row"><span class="leg-dot port"></span>Port</div>
+          <div class="leg-row"><span class="leg-dot hub"></span>Hub</div>
+          <div class="leg-divider"></div>
+          <div class="leg-row"><span class="leg-line air"></span>Air</div>
+          <div class="leg-row"><span class="leg-line sea"></span>Sea</div>
+          <div class="leg-row"><span class="leg-line rail"></span>Rail</div>
+          <div class="leg-row"><span class="leg-line opt"></span>Optimal</div>
+        </div>
+
+        <!-- Animate button (floating over map) -->
+        <button id="animate-btn" class="btn-animate" style="display:none">
+          ▶ Animate Shipment
+        </button>
+      </div>
+
+    </div><!-- /workspace -->
+
+    <!-- ══════════════════ RESULTS DRAWER ══════════════════ -->
+    <div id="results-drawer" class="drawer-closed">
+      <div id="drawer-handle" role="button" tabindex="0" aria-label="Toggle results">
+        <span id="drawer-label">▲ Route Results</span>
+        <span id="drawer-alg-badge" class="alg-badge"></span>
+      </div>
+
+      <div id="drawer-body">
+        <!-- Summary cards -->
+        <div id="result-cards"></div>
+        <!-- Segment table -->
+        <div id="result-segments"></div>
+        <!-- Event log -->
+        <div id="event-panel">
+          <div class="panel-header" style="margin-bottom:8px">
+            <span class="panel-icon">📡</span>
+            <span class="panel-title">Live Event Feed</span>
+          </div>
+          <div id="event-list"></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /app -->
+
+  <!-- Scripts -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/static/api.js"></script>
+  <script src="/static/map.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
