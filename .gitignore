@@ -1,0 +1,12 @@
+# Python environments
+.venv/
+env/
+__pycache__/
+*.pyc
+
+# ML Models
+ml_model.pkl
+
+# Builds
+.dist/
+dist/
