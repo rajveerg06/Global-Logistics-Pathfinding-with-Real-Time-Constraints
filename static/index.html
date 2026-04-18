@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LogistiPath — Global Logistics Pathfinding</title>
-  <meta name="description" content="Interactive global logistics route optimizer with Dijkstra and A* algorithms, real-time constraints, and animated shipment tracking." />
+  <title>LogistiPath v2 — Global Logistics Intelligence</title>
+  <meta name="description" content="Next-gen global logistics route optimizer: 210 hubs, Pareto multi-objective optimization, ML delay prediction, and multi-vehicle fleet routing." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -19,12 +19,13 @@
       <div class="brand-hex">⬡</div>
       <div class="brand-text">
         <span class="brand-name">LogistiPath</span>
-        <span class="brand-sub">Global Routing Intelligence</span>
+        <span class="brand-sub">v2 · Global Routing Intelligence</span>
       </div>
     </div>
     <div class="header-chips">
-      <div class="chip" id="chip-hubs">⬡ 25 Hubs</div>
+      <div class="chip" id="chip-hubs">⬡ — Hubs</div>
       <div class="chip" id="chip-edges">↔ — Routes</div>
+      <div class="chip" id="chip-live" title="Live data mode">🟡 Simulation</div>
       <div class="chip pulse" id="chip-status">● Ready</div>
     </div>
     <div class="header-time" id="header-clock">--:--</div>
@@ -36,123 +37,250 @@
     <!-- ─── SIDEBAR ──────────────────────────────────────────────────── -->
     <aside id="sidebar">
 
-      <!-- Route Planner Panel -->
-      <section class="panel">
-        <div class="panel-header">
-          <span class="panel-icon">◈</span>
-          <span class="panel-title">Route Planner</span>
-        </div>
+      <!-- ── TAB SWITCHER ──────────────────────────────────────────── -->
+      <div class="sidebar-tabs">
+        <button class="stab active" data-tab="route" id="tab-route">◈ Route</button>
+        <button class="stab" data-tab="pareto" id="tab-pareto">⬡ Pareto</button>
+        <button class="stab" data-tab="fleet" id="tab-fleet">🚛 Fleet</button>
+        <button class="stab" data-tab="constraints" id="tab-constraints">⚡ Live</button>
+      </div>
 
-        <div class="field-group">
-          <label class="field-label">Origin Hub</label>
-          <div class="ss-host" id="source-ss"></div>
-        </div>
-
-        <div class="swap-row">
-          <div class="swap-line"></div>
-          <button id="swap-btn" class="swap-btn" title="Swap hubs">⇅</button>
-          <div class="swap-line"></div>
-        </div>
-
-        <div class="field-group">
-          <label class="field-label">Destination Hub</label>
-          <div class="ss-host" id="dest-ss"></div>
-        </div>
-
-        <!-- Quick Presets -->
-        <div class="preset-label">Quick Presets</div>
-        <div class="preset-strip">
-          <button class="preset-btn" data-preset="fastest"  title="A* · Time">⚡ Fastest</button>
-          <button class="preset-btn" data-preset="cheapest" title="Dijkstra · Cost">💲 Cheapest</button>
-          <button class="preset-btn" data-preset="balanced" title="Dijkstra · Time">⚖ Balanced</button>
-          <button class="preset-btn" data-preset="lowrisk"  title="Dijkstra · Distance">🛡 Safe</button>
-        </div>
-
-        <div class="field-group">
-          <label class="field-label">Algorithm</label>
-          <div class="toggle-group" id="algo-toggle">
-            <button class="tog active" data-value="dijkstra">Dijkstra</button>
-            <button class="tog" data-value="astar">A★ Star</button>
+      <!-- ══ TAB: ROUTE PLANNER ══════════════════════════════════════ -->
+      <div class="tab-panel active" id="panel-route">
+        <section class="panel">
+          <div class="panel-header">
+            <span class="panel-icon">◈</span>
+            <span class="panel-title">Route Planner</span>
           </div>
-        </div>
 
-        <div class="field-group">
-          <label class="field-label">Optimise For</label>
-          <div class="toggle-group three" id="opt-toggle">
-            <button class="tog active" data-value="time">⏱ Time</button>
-            <button class="tog" data-value="distance">📏 Dist</button>
-            <button class="tog" data-value="cost">💲 Cost</button>
+          <div class="field-group">
+            <label class="field-label">Origin Hub</label>
+            <div class="ss-host" id="source-ss"></div>
           </div>
-        </div>
 
-        <button id="find-btn" class="btn-primary" disabled>
-          <span class="btn-glyph">◈</span> Find Optimal Route
-        </button>
-      </section>
-
-      <!-- Constraints Panel -->
-      <section class="panel" id="panel-constraints">
-        <div class="panel-header">
-          <span class="panel-icon">⚡</span>
-          <span class="panel-title">Real-Time Constraints</span>
-        </div>
-
-        <!-- Weather -->
-        <div class="constraint-block">
-          <div class="constraint-header">
-            <span class="c-icon">🌪️</span>
-            <span class="c-label">Weather Disruption</span>
+          <div class="swap-row">
+            <div class="swap-line"></div>
+            <button id="swap-btn" class="swap-btn" title="Swap hubs">⇅</button>
+            <div class="swap-line"></div>
           </div>
-          <div class="ss-host" id="weather-ss"></div>
-          <div class="slider-wrap">
-            <input type="range" id="weather-slider" min="1" max="3.5" step="0.1" value="1" />
-            <div class="slider-row">
-              <span class="slider-edge">Clear</span>
-              <div class="slider-center-col">
-                <span class="slider-val" id="weather-val">1.0×</span>
-                <span class="impact-delta" id="impact-weather"></span>
-              </div>
-              <span class="slider-edge">Severe</span>
+
+          <div class="field-group">
+            <label class="field-label">Destination Hub</label>
+            <div class="ss-host" id="dest-ss"></div>
+          </div>
+
+          <!-- Quick Presets -->
+          <div class="preset-label">Quick Presets</div>
+          <div class="preset-strip">
+            <button class="preset-btn" data-preset="fastest"  title="A* · Time">⚡ Fastest</button>
+            <button class="preset-btn" data-preset="cheapest" title="Dijkstra · Cost">💲 Cheapest</button>
+            <button class="preset-btn" data-preset="balanced" title="Dijkstra · Time">⚖ Balanced</button>
+            <button class="preset-btn" data-preset="lowrisk"  title="Dijkstra · Distance">🛡 Safe</button>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Algorithm</label>
+            <div class="toggle-group" id="algo-toggle">
+              <button class="tog active" data-value="dijkstra">Dijkstra</button>
+              <button class="tog" data-value="astar">A★ Star</button>
             </div>
           </div>
-          <button class="btn-constraint" id="apply-weather">Apply Weather</button>
-        </div>
 
-        <!-- Customs -->
-        <div class="constraint-block">
-          <div class="constraint-header">
-            <span class="c-icon">🛃</span>
-            <span class="c-label">Customs Delay</span>
-          </div>
-          <div class="ss-host" id="customs-ss"></div>
-          <div class="slider-wrap">
-            <input type="range" id="customs-slider" min="0" max="72" step="6" value="0" />
-            <div class="slider-row">
-              <span class="slider-edge">0 h</span>
-              <div class="slider-center-col">
-                <span class="slider-val" id="customs-val">0 h</span>
-                <span class="impact-delta" id="impact-customs"></span>
-              </div>
-              <span class="slider-edge">72 h</span>
+          <div class="field-group">
+            <label class="field-label">Optimise For</label>
+            <div class="toggle-group three" id="opt-toggle">
+              <button class="tog active" data-value="time">⏱ Time</button>
+              <button class="tog" data-value="distance">📏 Dist</button>
+              <button class="tog" data-value="cost">💲 Cost</button>
             </div>
           </div>
-          <button class="btn-constraint" id="apply-customs">Apply Customs</button>
-        </div>
 
-        <div class="constraint-actions">
-          <button class="btn-accent" id="random-btn">⚡ Random Event</button>
-          <button class="btn-danger"  id="reset-btn">↺ Reset All</button>
-        </div>
-      </section>
+          <button id="find-btn" class="btn-primary" disabled>
+            <span class="btn-glyph">◈</span> Find Optimal Route
+          </button>
+        </section>
 
-      <!-- Active Disruptions Panel -->
-      <section class="panel" id="panel-active" style="display:none">
-        <div class="panel-header">
-          <span class="panel-icon">🔴</span>
-          <span class="panel-title">Active Disruptions</span>
-        </div>
-        <div id="active-list"></div>
-      </section>
+        <!-- ML Prediction Badge -->
+        <section class="panel" id="panel-ml" style="display:none">
+          <div class="panel-header">
+            <span class="panel-icon">🤖</span>
+            <span class="panel-title">ML Delay Prediction</span>
+            <span class="ml-badge-dot" id="ml-status-dot" title="Model active">●</span>
+          </div>
+          <div id="ml-prediction-body"></div>
+        </section>
+      </div>
+
+      <!-- ══ TAB: PARETO ════════════════════════════════════════════ -->
+      <div class="tab-panel" id="panel-pareto-tab">
+        <section class="panel">
+          <div class="panel-header">
+            <span class="panel-icon">⬡</span>
+            <span class="panel-title">Pareto Multi-Objective</span>
+          </div>
+          <p class="panel-desc">Find all non-dominated routes — where no single path is better on all three objectives simultaneously.</p>
+
+          <div class="field-group">
+            <label class="field-label">Origin Hub</label>
+            <div class="ss-host" id="pareto-src-ss"></div>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Destination Hub</label>
+            <div class="ss-host" id="pareto-dst-ss"></div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Search Depth</label>
+            <div class="toggle-group three" id="pareto-depth-toggle">
+              <button class="tog active" data-value="30">Fast</button>
+              <button class="tog" data-value="50">Normal</button>
+              <button class="tog" data-value="80">Deep</button>
+            </div>
+          </div>
+
+          <button id="pareto-btn" class="btn-primary" disabled>
+            <span class="btn-glyph">⬡</span> Compute Pareto Front
+          </button>
+        </section>
+
+        <!-- Pareto results list -->
+        <section class="panel" id="pareto-results-panel" style="display:none">
+          <div class="panel-header">
+            <span class="panel-icon">◈</span>
+            <span class="panel-title">Pareto Front</span>
+            <span class="pareto-count-badge" id="pareto-count-badge">0</span>
+          </div>
+          <div id="pareto-results-list"></div>
+        </section>
+
+        <!-- Pareto scatter chart -->
+        <section class="panel" id="pareto-chart-panel" style="display:none">
+          <div class="panel-header">
+            <span class="panel-icon">📊</span>
+            <span class="panel-title">Time vs Cost Tradeoff</span>
+          </div>
+          <div class="pareto-chart-wrap">
+            <canvas id="pareto-chart" width="280" height="200"></canvas>
+          </div>
+          <div class="pareto-axes-label">
+            <span>← Lower cost</span><span>Faster time →</span>
+          </div>
+        </section>
+      </div>
+
+      <!-- ══ TAB: FLEET ROUTING ════════════════════════════════════ -->
+      <div class="tab-panel" id="panel-fleet-tab">
+        <section class="panel">
+          <div class="panel-header">
+            <span class="panel-icon">🚛</span>
+            <span class="panel-title">Fleet Routing (VRP)</span>
+          </div>
+          <p class="panel-desc">Route multiple vehicles with greedy nearest-insertion + 2-opt optimisation.</p>
+
+          <!-- Vehicle list -->
+          <div id="fleet-vehicles-list"></div>
+
+          <button id="fleet-add-btn" class="btn-accent" style="width:100%;margin-top:8px">
+            + Add Vehicle
+          </button>
+          <button id="fleet-solve-btn" class="btn-primary" style="margin-top:8px" disabled>
+            <span class="btn-glyph">🚛</span> Solve Fleet Routes
+          </button>
+        </section>
+
+        <!-- Fleet results -->
+        <section class="panel" id="fleet-results-panel" style="display:none">
+          <div class="panel-header">
+            <span class="panel-icon">📦</span>
+            <span class="panel-title">Fleet Solution</span>
+          </div>
+          <div id="fleet-summary-cards"></div>
+          <div id="fleet-vehicle-results"></div>
+        </section>
+      </div>
+
+      <!-- ══ TAB: CONSTRAINTS ══════════════════════════════════════ -->
+      <div class="tab-panel" id="panel-constraints-tab">
+
+        <!-- Live Status Bar -->
+        <section class="panel" id="panel-live-status">
+          <div class="panel-header">
+            <span class="panel-icon">📡</span>
+            <span class="panel-title">Live Data Status</span>
+          </div>
+          <div id="live-status-body">
+            <div class="live-status-row">
+              <span class="live-dot sim" id="live-mode-dot">●</span>
+              <span id="live-mode-label">Simulation Mode</span>
+            </div>
+            <div class="live-stats-grid" id="live-stats-grid"></div>
+          </div>
+        </section>
+
+        <section class="panel" id="panel-constraints">
+          <div class="panel-header">
+            <span class="panel-icon">⚡</span>
+            <span class="panel-title">Real-Time Constraints</span>
+          </div>
+
+          <!-- Weather -->
+          <div class="constraint-block">
+            <div class="constraint-header">
+              <span class="c-icon">🌪️</span>
+              <span class="c-label">Weather Disruption</span>
+            </div>
+            <div class="ss-host" id="weather-ss"></div>
+            <div class="slider-wrap">
+              <input type="range" id="weather-slider" min="1" max="3.5" step="0.1" value="1" />
+              <div class="slider-row">
+                <span class="slider-edge">Clear</span>
+                <div class="slider-center-col">
+                  <span class="slider-val" id="weather-val">1.0×</span>
+                  <span class="impact-delta" id="impact-weather"></span>
+                </div>
+                <span class="slider-edge">Severe</span>
+              </div>
+            </div>
+            <button class="btn-constraint" id="apply-weather">Apply Weather</button>
+          </div>
+
+          <!-- Customs -->
+          <div class="constraint-block">
+            <div class="constraint-header">
+              <span class="c-icon">🛃</span>
+              <span class="c-label">Customs Delay</span>
+            </div>
+            <div class="ss-host" id="customs-ss"></div>
+            <div class="slider-wrap">
+              <input type="range" id="customs-slider" min="0" max="72" step="6" value="0" />
+              <div class="slider-row">
+                <span class="slider-edge">0 h</span>
+                <div class="slider-center-col">
+                  <span class="slider-val" id="customs-val">0 h</span>
+                  <span class="impact-delta" id="impact-customs"></span>
+                </div>
+                <span class="slider-edge">72 h</span>
+              </div>
+            </div>
+            <button class="btn-constraint" id="apply-customs">Apply Customs</button>
+          </div>
+
+          <div class="constraint-actions">
+            <button class="btn-accent" id="random-btn">⚡ Random Event</button>
+            <button class="btn-danger"  id="reset-btn">↺ Reset All</button>
+          </div>
+        </section>
+
+        <!-- Active Disruptions -->
+        <section class="panel" id="panel-active" style="display:none">
+          <div class="panel-header">
+            <span class="panel-icon">🔴</span>
+            <span class="panel-title">Active Disruptions</span>
+          </div>
+          <div id="active-list"></div>
+        </section>
+
+      </div><!-- /constraints tab -->
 
     </aside>
 
@@ -167,7 +295,10 @@
         <div class="leg-row"><span class="leg-line air"></span>Air</div>
         <div class="leg-row"><span class="leg-line sea"></span>Sea</div>
         <div class="leg-row"><span class="leg-line rail"></span>Rail</div>
+        <div class="leg-row"><span class="leg-line road"></span>Road</div>
         <div class="leg-row"><span class="leg-line opt"></span>Optimal</div>
+        <div class="leg-divider" id="leg-fleet-divider" style="display:none"></div>
+        <div id="leg-fleet-items"></div>
       </div>
 
       <button id="animate-btn" class="btn-animate" style="display:none">
@@ -182,16 +313,17 @@
     <div id="drawer-handle" role="button" tabindex="0" aria-label="Toggle results">
       <span id="drawer-label">▲ Route Results</span>
       <div class="drawer-handle-right">
+        <div id="ml-inline-badge" class="ml-inline-badge" style="display:none"></div>
         <div id="risk-badge" class="risk-badge" style="display:none"></div>
         <span id="drawer-alg-badge" class="alg-badge"></span>
       </div>
     </div>
 
     <div id="drawer-body">
-      <!-- Timeline bar (full-width top row) -->
+      <!-- Timeline bar -->
       <div id="timeline-wrap"></div>
 
-      <!-- Lower section: cards + table + events -->
+      <!-- Lower section -->
       <div id="drawer-lower">
         <div id="result-cards"></div>
         <div id="result-segments"></div>
@@ -209,6 +341,8 @@
 </div><!-- /app -->
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Chart.js for Pareto scatter -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="/static/api.js"></script>
 <script src="/static/map.js"></script>
 <script src="/static/app.js"></script>

@@ -5,148 +5,148 @@
 const MapController = (() => {
 
   // ── Internals ─────────────────────────────────────────────────────────
-  let _map         = null;
-  let _edgeLines   = [];
-  let _pathLines   = [];
+  let _map = null;
+  let _edgeLines = [];
+  let _pathLines = [];
   let _nodeMarkers = {};
-  let _shipMarker  = null;
-  let _animFrame   = null;
+  let _shipMarker = null;
+  let _animFrame = null;
   let _animRunning = false;
 
-  const MODE_COLOR = { air:'#00d4ff', sea:'#3b82f6', rail:'#f59e0b', road:'#6b7280' };
-  const MODE_DASH  = { air:'7,5',     sea:null,       rail:'10,5',    road:'4,4'     };
-  const MODE_ICON  = { air:'✈',       sea:'🚢',       rail:'🚂',      road:'🚛'      };
+  const MODE_COLOR = { air: '#00d4ff', sea: '#3b82f6', rail: '#f59e0b', road: '#6b7280' };
+  const MODE_DASH = { air: '7,5', sea: null, rail: '10,5', road: '4,4' };
+  const MODE_ICON = { air: '✈', sea: '🚢', rail: '🚂', road: '🚛' };
 
   // ── Sea-route waypoints ──────────────────────────────────────────────
   // Groups of node IDs sharing a corridor characteristic
   const G = {
-    EAST_ASIA : ['shanghai','hong_kong','shenzhen','busan','seoul','tokyo','vladivostok'],
-    SE_ASIA   : ['singapore','colombo'],
-    S_ASIA    : ['mumbai','colombo','karachi'],
-    MID_EAST  : ['dubai','karachi'],
-    EUROPE    : ['rotterdam','hamburg','antwerp','london'],
-    AM_WEST   : ['los_angeles'],
-    AM_EAST   : ['new_york','sao_paulo'],
-    OCEANIA   : ['sydney'],
-    AFRICA    : ['johannesburg'],
+    EAST_ASIA: ['shanghai', 'hong_kong', 'shenzhen', 'busan', 'seoul', 'tokyo', 'vladivostok'],
+    SE_ASIA: ['singapore', 'colombo'],
+    S_ASIA: ['mumbai', 'colombo', 'karachi'],
+    MID_EAST: ['dubai', 'karachi'],
+    EUROPE: ['rotterdam', 'hamburg', 'antwerp', 'london'],
+    AM_WEST: ['los_angeles'],
+    AM_EAST: ['new_york', 'sao_paulo'],
+    OCEANIA: ['sydney'],
+    AFRICA: ['johannesburg'],
   };
 
   // Key ocean corridor waypoints (lat, lon arrays)
   const WP = {
     // Suez Canal corridor (going west from Asia)
-    SUEZ_FWD : [
-      [  1.2, 104.0],  // Singapore Strait
-      [  5.5,  79.5],  // Sri Lanka south
-      [ 11.5,  43.5],  // Bab-el-Mandeb (Red Sea entrance)
-      [ 27.0,  33.8],  // Suez Canal
-      [ 31.5,  32.3],  // Suez exit Mediterranean
-      [ 34.0,  23.0],  // E. Mediterranean
-      [ 37.5,  13.5],  // C. Mediterranean (Sicily area)
-      [ 36.0,  -5.4],  // Strait of Gibraltar
-      [ 44.5,  -8.5],  // Bay of Biscay
+    SUEZ_FWD: [
+      [1.2, 104.0],  // Singapore Strait
+      [5.5, 79.5],  // Sri Lanka south
+      [11.5, 43.5],  // Bab-el-Mandeb (Red Sea entrance)
+      [27.0, 33.8],  // Suez Canal
+      [31.5, 32.3],  // Suez exit Mediterranean
+      [34.0, 23.0],  // E. Mediterranean
+      [37.5, 13.5],  // C. Mediterranean (Sicily area)
+      [36.0, -5.4],  // Strait of Gibraltar
+      [44.5, -8.5],  // Bay of Biscay
     ],
     // Singapore-Dubai (Indian Ocean direct)
-    SG_DUBAI : [
-      [  5.5,  79.5],  // Sri Lanka south
-      [ 10.0,  65.0],  // Arabian Sea centre
+    SG_DUBAI: [
+      [5.5, 79.5],  // Sri Lanka south
+      [10.0, 65.0],  // Arabian Sea centre
     ],
     // Trans-Pacific northerly (Asia → W. Americas)
-    PACIFIC_N_FWD : [
-      [ 39.0, 155.0],  // East of Japan
-      [ 45.0, 175.0],  // NW Pacific
-      [ 47.0,-175.0],  // Cross date line
-      [ 43.0,-155.0],  // NE Pacific
+    PACIFIC_N_FWD: [
+      [39.0, 155.0],  // East of Japan
+      [45.0, 175.0],  // NW Pacific
+      [47.0, -175.0],  // Cross date line
+      [43.0, -155.0],  // NE Pacific
     ],
     // Trans-Pacific southerly (Oceania → W. Americas)
-    PACIFIC_S_FWD : [
+    PACIFIC_S_FWD: [
       [-28.0, 172.0],  // E. of New Zealand
-      [-30.0,-145.0],  // South Pacific
+      [-30.0, -145.0],  // South Pacific
     ],
     // Trans-Atlantic northerly (Europe → E. Americas)
-    ATLANTIC_N_FWD : [
-      [ 42.0, -22.0],  // Mid-North Atlantic
-      [ 38.0, -50.0],  // West North Atlantic
+    ATLANTIC_N_FWD: [
+      [42.0, -22.0],  // Mid-North Atlantic
+      [38.0, -50.0],  // West North Atlantic
     ],
     // South Atlantic (S. America ↔ Africa/Europe)
-    ATLANTIC_S_FWD : [
-      [ -8.0, -16.0],  // Equatorial Atlantic
+    ATLANTIC_S_FWD: [
+      [-8.0, -16.0],  // Equatorial Atlantic
     ],
     // Africa → Europe (east coast of Atlantic)
-    AFRICA_EUR_FWD : [
-      [-30.0,  18.0],  // Cape region / S. Atlantic
-      [-20.0,   5.0],  // South Atlantic
-      [  5.0,  -5.0],  // Gulf of Guinea
-      [ 25.0, -18.0],  // Canary Islands area
+    AFRICA_EUR_FWD: [
+      [-30.0, 18.0],  // Cape region / S. Atlantic
+      [-20.0, 5.0],  // South Atlantic
+      [5.0, -5.0],  // Gulf of Guinea
+      [25.0, -18.0],  // Canary Islands area
     ],
     // South China Sea (Shanghai → Singapore)
-    SCS_FWD : [
-      [ 22.0, 114.5],  // Pearl River / HK area
-      [ 12.5, 109.5],  // South China Sea centre
-      [  4.5, 105.0],  // Near Singapore approach
+    SCS_FWD: [
+      [22.0, 114.5],  // Pearl River / HK area
+      [12.5, 109.5],  // South China Sea centre
+      [4.5, 105.0],  // Near Singapore approach
     ],
     // E. Africa / Indian Ocean (Johannesburg sea - around Cape of Good Hope)
-    SA_SUEZ_FWD : [
-      [-30.0,  30.5],  // Cape Agulhas / around Cape
-      [-20.0,  38.0],  // Mozambique Channel
-      [  5.0,  45.0],  // Horn of Africa
-      [ 11.5,  43.5],  // Bab-el-Mandeb
-      [ 27.0,  33.8],  // Suez Canal
-      [ 31.5,  32.3],  // Mediterranean entry
-      [ 37.5,  13.5],  // C. Mediterranean
-      [ 36.0,  -5.4],  // Gibraltar
-      [ 44.5,  -8.5],  // Bay of Biscay
+    SA_SUEZ_FWD: [
+      [-30.0, 30.5],  // Cape Agulhas / around Cape
+      [-20.0, 38.0],  // Mozambique Channel
+      [5.0, 45.0],  // Horn of Africa
+      [11.5, 43.5],  // Bab-el-Mandeb
+      [27.0, 33.8],  // Suez Canal
+      [31.5, 32.3],  // Mediterranean entry
+      [37.5, 13.5],  // C. Mediterranean
+      [36.0, -5.4],  // Gibraltar
+      [44.5, -8.5],  // Bay of Biscay
     ],
     // Johannesburg → Sao Paulo (south Atlantic, below Cape)
-    SA_SAP_FWD : [
-      [-30.0,  20.0],  // Past Cape
-      [-35.0,  -5.0],  // Deep South Atlantic
+    SA_SAP_FWD: [
+      [-30.0, 20.0],  // Past Cape
+      [-35.0, -5.0],  // Deep South Atlantic
     ],
     // Mumbai ↔ Europe (via Suez, start further north)
-    MUM_EUR_FWD : [
-      [ 12.0,  44.5],  // Gulf of Aden
-      [ 27.0,  33.8],  // Suez
-      [ 31.5,  32.3],  // Med entry
-      [ 37.5,  13.5],  // C. Mediterranean
-      [ 36.0,  -5.4],  // Gibraltar
-      [ 44.5,  -8.5],  // Bay of Biscay
+    MUM_EUR_FWD: [
+      [12.0, 44.5],  // Gulf of Aden
+      [27.0, 33.8],  // Suez
+      [31.5, 32.3],  // Med entry
+      [37.5, 13.5],  // C. Mediterranean
+      [36.0, -5.4],  // Gibraltar
+      [44.5, -8.5],  // Bay of Biscay
     ],
     // Colombo → Rotterdam via Suez
-    COL_EUR_FWD : [
-      [ 11.5,  43.5],  // Bab-el-Mandeb
-      [ 27.0,  33.8],  // Suez
-      [ 31.5,  32.3],  // Med entry
-      [ 37.5,  13.5],  // C. Mediterranean
-      [ 36.0,  -5.4],  // Gibraltar
-      [ 44.5,  -8.5],  // Bay of Biscay
+    COL_EUR_FWD: [
+      [11.5, 43.5],  // Bab-el-Mandeb
+      [27.0, 33.8],  // Suez
+      [31.5, 32.3],  // Med entry
+      [37.5, 13.5],  // C. Mediterranean
+      [36.0, -5.4],  // Gibraltar
+      [44.5, -8.5],  // Bay of Biscay
     ],
     // Singapore → Sydney (around Australia east side)
-    SG_SYD_FWD : [
-      [  3.0, 108.0],  // South China Sea / Borneo east
-      [ -8.0, 117.0],  // Bali / Lombok Strait
+    SG_SYD_FWD: [
+      [3.0, 108.0],  // South China Sea / Borneo east
+      [-8.0, 117.0],  // Bali / Lombok Strait
       [-15.0, 130.0],  // Timor Sea
       [-23.0, 148.0],  // Coral Sea / Queensland coast
     ],
     // Los Angeles → Sydney (South Pacific east route)
-    LA_SYD_FWD : [
-      [ 20.0,-155.0],  // Hawaii area
-      [  5.0,-170.0],  // SW Pacific
-      [-15.0,-175.0],  // Approaching Fiji
+    LA_SYD_FWD: [
+      [20.0, -155.0],  // Hawaii area
+      [5.0, -170.0],  // SW Pacific
+      [-15.0, -175.0],  // Approaching Fiji
       [-30.0, 170.0],  // West of New Zealand
     ],
     // Vladivostok ↔ Busan (short Sea of Japan)
-    VLAD_BUSAN_FWD : [],  // straight is fine (Sea of Japan)
+    VLAD_BUSAN_FWD: [],  // straight is fine (Sea of Japan)
     // Busan ↔ Los Angeles (North Pacific)
-    BUSAN_LA_FWD : [
-      [ 42.0, 155.0],
-      [ 47.0, 175.0],
-      [ 47.0,-175.0],
-      [ 43.0,-150.0],
+    BUSAN_LA_FWD: [
+      [42.0, 155.0],
+      [47.0, 175.0],
+      [47.0, -175.0],
+      [43.0, -150.0],
     ],
     // New York → São Paulo (south along Americas coast)
-    NY_SAP_FWD : [
-      [ 25.0, -70.0],  // Bahamas
-      [ 10.0, -55.0],  // Caribbean exit
-      [  0.0, -48.0],  // Equatorial Atlantic
+    NY_SAP_FWD: [
+      [25.0, -70.0],  // Bahamas
+      [10.0, -55.0],  // Caribbean exit
+      [0.0, -48.0],  // Equatorial Atlantic
     ],
   };
 
@@ -204,23 +204,23 @@ const MapController = (() => {
 
     // Busan → Los Angeles (similar to east asia)
     if (from_id === 'busan' && to_id === 'los_angeles') return WP.BUSAN_LA_FWD;
-    if (from_id === 'los_angeles' && to_id === 'busan')  return rev(WP.BUSAN_LA_FWD);
+    if (from_id === 'los_angeles' && to_id === 'busan') return rev(WP.BUSAN_LA_FWD);
 
     // Oceania ↔ W. Americas
-    if (from_id === 'sydney' && inG(to_id, 'AM_WEST'))  return WP.PACIFIC_S_FWD;
-    if (inG(from_id, 'AM_WEST') && to_id === 'sydney')  return rev(WP.PACIFIC_S_FWD);
+    if (from_id === 'sydney' && inG(to_id, 'AM_WEST')) return WP.PACIFIC_S_FWD;
+    if (inG(from_id, 'AM_WEST') && to_id === 'sydney') return rev(WP.PACIFIC_S_FWD);
 
     // Oceania ↔ Singapore (up through Indonesia)
-    if (from_id === 'sydney' && to_id === 'singapore')   return rev(WP.SG_SYD_FWD);
-    if (from_id === 'singapore' && to_id === 'sydney')   return WP.SG_SYD_FWD;
+    if (from_id === 'sydney' && to_id === 'singapore') return rev(WP.SG_SYD_FWD);
+    if (from_id === 'singapore' && to_id === 'sydney') return WP.SG_SYD_FWD;
 
     // W. Americas ↔ Sydney (via South Pacific)
     if (from_id === 'los_angeles' && to_id === 'sydney') return WP.LA_SYD_FWD;
     if (from_id === 'sydney' && to_id === 'los_angeles') return rev(WP.LA_SYD_FWD);
 
     // Europe ↔ E. Americas (Trans-Atlantic)
-    if (inG(from_id, 'EUROPE') && to_id === 'new_york')  return WP.ATLANTIC_N_FWD;
-    if (from_id === 'new_york' && inG(to_id, 'EUROPE'))  return rev(WP.ATLANTIC_N_FWD);
+    if (inG(from_id, 'EUROPE') && to_id === 'new_york') return WP.ATLANTIC_N_FWD;
+    if (from_id === 'new_york' && inG(to_id, 'EUROPE')) return rev(WP.ATLANTIC_N_FWD);
 
     // New York ↔ São Paulo (down Americas coast)
     if (from_id === 'new_york' && to_id === 'sao_paulo') return WP.NY_SAP_FWD;
@@ -238,28 +238,28 @@ const MapController = (() => {
     if (from_id === 'johannesburg' && inG(to_id, 'EUROPE')) return WP.SA_SUEZ_FWD;
 
     // Singapore ↔ Dubai (Indian Ocean)
-    if (from_id === 'singapore' && to_id === 'dubai')    return WP.SG_DUBAI;
-    if (from_id === 'dubai' && to_id === 'singapore')    return rev(WP.SG_DUBAI);
+    if (from_id === 'singapore' && to_id === 'dubai') return WP.SG_DUBAI;
+    if (from_id === 'dubai' && to_id === 'singapore') return rev(WP.SG_DUBAI);
 
     // Singapore ↔ Mumbai (Bay of Bengal / Indian Ocean)
-    if (from_id === 'singapore' && to_id === 'mumbai')   return [[5.5, 79.5]];
-    if (from_id === 'mumbai' && to_id === 'singapore')   return [[5.5, 79.5]];
+    if (from_id === 'singapore' && to_id === 'mumbai') return [[5.5, 79.5]];
+    if (from_id === 'mumbai' && to_id === 'singapore') return [[5.5, 79.5]];
 
     // Colombo ↔ Dubai (Arabian Sea)
-    if (from_id === 'colombo' && to_id === 'dubai')      return [[10.5, 62.0]];
-    if (from_id === 'dubai' && to_id === 'colombo')      return [[10.5, 62.0]];
+    if (from_id === 'colombo' && to_id === 'dubai') return [[10.5, 62.0]];
+    if (from_id === 'dubai' && to_id === 'colombo') return [[10.5, 62.0]];
 
     // Colombo ↔ Rotterdam (Suez)
-    if (from_id === 'colombo' && inG(to_id, 'EUROPE'))   return WP.COL_EUR_FWD;
-    if (inG(from_id, 'EUROPE') && to_id === 'colombo')   return rev(WP.COL_EUR_FWD);
+    if (from_id === 'colombo' && inG(to_id, 'EUROPE')) return WP.COL_EUR_FWD;
+    if (inG(from_id, 'EUROPE') && to_id === 'colombo') return rev(WP.COL_EUR_FWD);
 
     // Colombo ↔ Singapore (Bay of Bengal)
     if (from_id === 'colombo' && to_id === 'singapore') return [[5.0, 93.0]];
     if (from_id === 'singapore' && to_id === 'colombo') return [[5.0, 93.0]];
 
     // Karachi ↔ Singapore (Arabian Sea + Indian Ocean)
-    if (from_id === 'karachi' && to_id === 'singapore')  return [[5.5, 79.5], [4.0, 93.0]];
-    if (from_id === 'singapore' && to_id === 'karachi')  return [[4.0, 93.0], [5.5, 79.5]];
+    if (from_id === 'karachi' && to_id === 'singapore') return [[5.5, 79.5], [4.0, 93.0]];
+    if (from_id === 'singapore' && to_id === 'karachi') return [[4.0, 93.0], [5.5, 79.5]];
 
     // Shanghai ↔ Singapore (South China Sea)
     if (from_id === 'shanghai' && to_id === 'singapore') return WP.SCS_FWD;
@@ -271,15 +271,15 @@ const MapController = (() => {
 
     // Mumbai ↔ Dubai (Arabian Sea — short, OK with small bend)
     if ((from_id === 'mumbai' && to_id === 'dubai') ||
-        (from_id === 'dubai'  && to_id === 'mumbai'))   return [[15.0, 65.0]];
+      (from_id === 'dubai' && to_id === 'mumbai')) return [[15.0, 65.0]];
 
     // Mumbai ↔ Rotterdam (via Suez)
-    if (from_id === 'mumbai' && inG(to_id, 'EUROPE'))   return WP.MUM_EUR_FWD;
-    if (inG(from_id, 'EUROPE') && to_id === 'mumbai')   return rev(WP.MUM_EUR_FWD);
+    if (from_id === 'mumbai' && inG(to_id, 'EUROPE')) return WP.MUM_EUR_FWD;
+    if (inG(from_id, 'EUROPE') && to_id === 'mumbai') return rev(WP.MUM_EUR_FWD);
 
     // Rotterdam ↔ São Paulo (south Atlantic)  
     if ((inG(from_id, 'EUROPE') && to_id === 'sao_paulo') ||
-        (from_id === 'sao_paulo' && inG(to_id, 'EUROPE')))
+      (from_id === 'sao_paulo' && inG(to_id, 'EUROPE')))
       return [[42.0, -20.0], [20.0, -22.0], [-6.0, -20.0]];
 
     // No waypoints needed
@@ -289,7 +289,7 @@ const MapController = (() => {
   // ── Build lat/lon path (with waypoints) ──────────────────────────────
   function buildLatLngs(from_lat, from_lon, to_lat, to_lon, from_id, to_id, mode) {
     const src = [from_lat, from_lon];
-    const dst = [to_lat,   to_lon  ];
+    const dst = [to_lat, to_lon];
     if (mode !== 'sea') return [src, dst];
     const wp = getSeaWaypoints(from_id, to_id);
     if (!wp || !wp.length) return [src, dst];
@@ -318,11 +318,11 @@ const MapController = (() => {
 
     graphData.edges.forEach(e => {
       const from = nodeById[e.from];
-      const to   = nodeById[e.to];
+      const to = nodeById[e.to];
       if (!from || !to) return;
 
-      const color   = MODE_COLOR[e.mode] || '#ffffff';
-      const dashArr = MODE_DASH[e.mode]  || null;
+      const color = MODE_COLOR[e.mode] || '#ffffff';
+      const dashArr = MODE_DASH[e.mode] || null;
       const latlngs = buildLatLngs(from.lat, from.lon, to.lat, to.lon, e.from, e.to, e.mode);
 
       L.polyline(latlngs, { color, weight: 1.2, opacity: 0.22, dashArray: dashArr })
@@ -333,11 +333,11 @@ const MapController = (() => {
     // Markers
     graphData.nodes.forEach(node => {
       const isPort = node.type === 'port';
-      const color  = isPort ? '#00d4ff' : '#8b5cf6';
+      const color = isPort ? '#00d4ff' : '#8b5cf6';
       const icon = L.divIcon({
         className: '',
         html: `<div style="width:13px;height:13px;border-radius:50%;background:${color}33;border:2px solid ${color};box-shadow:0 0 8px ${color}88;cursor:pointer;"></div>`,
-        iconSize: [13,13], iconAnchor: [6,6],
+        iconSize: [13, 13], iconAnchor: [6, 6],
       });
       const marker = L.marker([node.lat, node.lon], { icon });
       marker.bindPopup(_popup(node), { maxWidth: 220 });
@@ -366,16 +366,16 @@ const MapController = (() => {
     segments.forEach(seg => {
       const latlngs = buildLatLngs(
         seg.from_lat, seg.from_lon,
-        seg.to_lat,   seg.to_lon,
-        seg.from,     seg.to,
+        seg.to_lat, seg.to_lon,
+        seg.from, seg.to,
         seg.mode
       );
 
       // Glow layer
-      const glow = L.polyline(latlngs, { color:'#00d4ff', weight: 8, opacity: 0.15 }).addTo(_map);
+      const glow = L.polyline(latlngs, { color: '#00d4ff', weight: 8, opacity: 0.15 }).addTo(_map);
       // Main line
       const line = L.polyline(latlngs, {
-        color:'#00d4ff', weight: 3, opacity: 0.95,
+        color: '#00d4ff', weight: 3, opacity: 0.95,
         dashArray: seg.mode === 'air' ? '10,6' : null,
       }).addTo(_map);
       _pathLines.push(glow, line);
@@ -393,7 +393,7 @@ const MapController = (() => {
     entry.marker.setIcon(L.divIcon({
       className: '',
       html: `<div style="width:18px;height:18px;border-radius:50%;background:${color}44;border:2.5px solid ${color};box-shadow:0 0 18px ${color};"></div>`,
-      iconSize: [18,18], iconAnchor: [9,9],
+      iconSize: [18, 18], iconAnchor: [9, 9],
     }));
   }
 
@@ -406,22 +406,22 @@ const MapController = (() => {
     segments.forEach(seg => {
       const latlngs = buildLatLngs(
         seg.from_lat, seg.from_lon,
-        seg.to_lat,   seg.to_lon,
-        seg.from,     seg.to,
+        seg.to_lat, seg.to_lon,
+        seg.from, seg.to,
         seg.mode
       );
       for (let i = 0; i < latlngs.length - 1; i++) {
-        legs.push({ from: latlngs[i], to: latlngs[i+1], mode: seg.mode });
+        legs.push({ from: latlngs[i], to: latlngs[i + 1], mode: seg.mode });
       }
     });
 
     const dominant = segments[0]?.mode || 'air';
-    const emoji    = MODE_ICON[dominant];
+    const emoji = MODE_ICON[dominant];
 
     const shipIcon = L.divIcon({
       className: '',
       html: `<div style="font-size:20px;filter:drop-shadow(0 0 6px #00d4ff);transform:translate(-50%,-50%);">${emoji}</div>`,
-      iconSize:[0,0], iconAnchor:[0,0],
+      iconSize: [0, 0], iconAnchor: [0, 0],
     });
 
     _shipMarker = L.marker(legs[0].from, { icon: shipIcon, zIndexOffset: 1000 }).addTo(_map);
@@ -461,7 +461,7 @@ const MapController = (() => {
       marker.setIcon(L.divIcon({
         className: '',
         html: `<div style="width:13px;height:13px;border-radius:50%;background:${color}33;border:2px solid ${color};box-shadow:0 0 8px ${color}88;cursor:pointer;"></div>`,
-        iconSize: [13,13], iconAnchor: [6,6],
+        iconSize: [13, 13], iconAnchor: [6, 6],
       }));
     });
   }
@@ -473,9 +473,69 @@ const MapController = (() => {
       const latlngs = buildLatLngs(seg.from_lat, seg.from_lon, seg.to_lat, seg.to_lon, seg.from, seg.to, seg.mode);
       latlngs.forEach(p => pts.push(p));
     });
-    _map.fitBounds(L.latLngBounds(pts), { padding:[60,60], maxZoom:6 });
+    _map.fitBounds(L.latLngBounds(pts), { padding: [60, 60], maxZoom: 6 });
   }
 
-  return { init, renderGraph, highlightPath, animateShipment, stopAnimation, clearPath, fitPath };
+  // ── Fleet multi-route rendering ───────────────────────────────────────
+  const FLEET_COLORS = ['#f43f5e', '#f59e0b', '#10b981', '#8b5cf6', '#06b6d4'];
+  let _fleetLines = [];
+  let _fleetLegendItems = [];
+
+  function renderFleetRoutes(vehicles) {
+    // Clear previous fleet lines
+    _fleetLines.forEach(l => _map.removeLayer(l));
+    _fleetLines = [];
+
+    // Clear route tab path too
+    _pathLines.forEach(l => _map.removeLayer(l));
+    _pathLines = [];
+
+    // Update legend
+    const legDivider = document.getElementById('leg-fleet-divider');
+    const legItems = document.getElementById('leg-fleet-items');
+    if (legDivider) legDivider.style.display = '';
+    if (legItems) legItems.innerHTML = '';
+
+    const allPts = [];
+
+    vehicles.forEach((v, vIdx) => {
+      if (!v.feasible) return;
+      const color = FLEET_COLORS[vIdx % FLEET_COLORS.length];
+
+      // Legend entry
+      if (legItems) {
+        legItems.innerHTML += `<div class="leg-row"><span class="leg-line" style="background:${color};opacity:1;box-shadow:0 0 6px ${color}66"></span>${v.id}</div>`;
+      }
+
+      (v.legs || []).forEach(leg => {
+        (leg.segments || []).forEach(seg => {
+          if (!seg.from_lat) return;
+          const latlngs = buildLatLngs(
+            seg.from_lat, seg.from_lon,
+            seg.to_lat, seg.to_lon,
+            seg.from, seg.to,
+            seg.mode
+          );
+          latlngs.forEach(p => allPts.push(p));
+
+          // Glow
+          const glow = L.polyline(latlngs, { color, weight: 7, opacity: 0.12 }).addTo(_map);
+          // Line
+          const line = L.polyline(latlngs, {
+            color, weight: 2.5, opacity: 0.9,
+            dashArray: seg.mode === 'air' ? '8,5' : null,
+          }).addTo(_map);
+          _fleetLines.push(glow, line);
+        });
+      });
+    });
+
+    // Fit to fleet bounds
+    if (allPts.length > 1) {
+      _map.fitBounds(L.latLngBounds(allPts), { padding: [60, 60], maxZoom: 5 });
+    }
+  }
+
+  return { init, renderGraph, highlightPath, animateShipment, stopAnimation, clearPath, fitPath, renderFleetRoutes };
 
 })();
